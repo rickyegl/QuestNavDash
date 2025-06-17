@@ -41,7 +41,6 @@ class HexDataDashboard:
 
         self.CENTER_X, self.CENTER_Y = 275, 275
         self.DOT_SIZE = 20
-        # --- MODIFIED: Replaced 'hexagon' with 'hex_outer' and 'hex_inner' ---
         self.RADII = {
             "hex_outer": 65, 
             "hex_inner": 45, 
@@ -55,6 +54,9 @@ class HexDataDashboard:
 
         self.dot_nodes = {}
         self.hexagon_sides = {}
+        
+        # --- NEW: State variable to track the currently hovered dot ---
+        self.currently_hovered_id = None
 
         self.canvas = tk.Canvas(master, width=550, height=550, bg=self.COLORS["bg"], highlightthickness=0)
         self.canvas.pack()
@@ -77,54 +79,37 @@ class HexDataDashboard:
         self.draw_orbital_dots()
         self.draw_hexagon()
 
-    # --- REWRITTEN: Draws 6 trapezoid polygons instead of lines ---
     def draw_hexagon(self):
         """Draws the central hexagon as 6 separate, interactive trapezoids."""
         outer_points = []
         inner_points = []
         
-        # First, calculate all 6 vertices for both the outer and inner rings
         for i in range(6):
-            angle = i * 60 - 30  # Angle for pointy-topped hexagon vertices
+            angle = i * 60 - 30
             outer_points.append(self.get_circle_position(self.RADII["hex_outer"], angle))
             inner_points.append(self.get_circle_position(self.RADII["hex_inner"], angle))
 
-        # Now, create a trapezoid for each of the 6 sides
         for i in range(6):
-            # The modulo operator (%) ensures the last point connects back to the first
-            p_outer_1 = outer_points[i]
-            p_outer_2 = outer_points[(i + 1) % 6]
-            p_inner_1 = inner_points[i]
-            p_inner_2 = inner_points[(i + 1) % 6]
-            
-            # The four points of the trapezoid, in order to trace its perimeter
+            p_outer_1, p_outer_2 = outer_points[i], outer_points[(i + 1) % 6]
+            p_inner_1, p_inner_2 = inner_points[i], inner_points[(i + 1) % 6]
             trapezoid_points = [p_outer_1, p_outer_2, p_inner_2, p_inner_1]
 
-            # Create the polygon on the canvas
             poly_id = self.canvas.create_polygon(
                 trapezoid_points,
                 fill=self.COLORS["purple"],
-                outline="",  # No outline so the trapezoids appear seamless
+                outline="",
                 tags="hexagon_side"
             )
-            # Create the data object for this side and store it
             self.hexagon_sides[poly_id] = HexSideNode(poly_id, i)
 
     def toggle_hexagon_side(self, event):
-        """Toggles a hexagon side between purple and red. Works for polygons too."""
         clicked_id = self.canvas.find_closest(event.x, event.y)[0]
-        
-        if clicked_id not in self.hexagon_sides:
-            return
-
-        side_node = self.hexagon_sides[clicked_id]
-        side_node.is_flagged = not side_node.is_flagged
-        
-        new_color = self.COLORS['red_flagged'] if side_node.is_flagged else self.COLORS['purple']
-        # itemconfig with 'fill' works on polygons just as it did on lines
-        self.canvas.itemconfig(clicked_id, fill=new_color)
-        
-        print(f"Toggled: {side_node}")
+        if clicked_id in self.hexagon_sides:
+            side_node = self.hexagon_sides[clicked_id]
+            side_node.is_flagged = not side_node.is_flagged
+            new_color = self.COLORS['red_flagged'] if side_node.is_flagged else self.COLORS['purple']
+            self.canvas.itemconfig(clicked_id, fill=new_color)
+            print(f"Toggled: {side_node}")
 
     def draw_orbital_dots(self):
         purple_radii = [self.RADII['level_1'], self.RADII['level_2'], self.RADII['level_3']]
@@ -145,28 +130,26 @@ class HexDataDashboard:
 
     def handle_right_click(self, event):
         clicked_id = self.canvas.find_closest(event.x, event.y)[0]
-        if clicked_id not in self.dot_nodes:
-            return
-        node = self.dot_nodes[clicked_id]
-        node.is_flagged = not node.is_flagged
-        if node.is_flagged:
-            node.is_active = False
-        self._update_dot_visuals(node)
-        print(f"Right-clicked: {node}")
+        if clicked_id in self.dot_nodes:
+            node = self.dot_nodes[clicked_id]
+            node.is_flagged = not node.is_flagged
+            if node.is_flagged:
+                node.is_active = False
+            self._update_dot_visuals(node)
+            print(f"Right-clicked: {node}")
 
     def handle_left_click(self, event):
         clicked_id = self.canvas.find_closest(event.x, event.y)[0]
-        if clicked_id not in self.dot_nodes:
-            return
-        node = self.dot_nodes[clicked_id]
-        if node.is_flagged:
-            node.is_flagged = False
-        else:
-            node.is_active = not node.is_active
-            if node.type == 'green':
-                node.has_algae = node.is_active
-        self._update_dot_visuals(node)
-        print(f"Left-clicked: {node}")
+        if clicked_id in self.dot_nodes:
+            node = self.dot_nodes[clicked_id]
+            if node.is_flagged:
+                node.is_flagged = False
+            else:
+                node.is_active = not node.is_active
+                if node.type == 'green':
+                    node.has_algae = node.is_active
+            self._update_dot_visuals(node)
+            print(f"Left-clicked: {node}")
 
     def _update_dot_visuals(self, node):
         new_color = ""
@@ -178,19 +161,37 @@ class HexDataDashboard:
             new_color = self.COLORS['purple'] if node.type == 'purple' else self.COLORS['green']
         self.canvas.itemconfig(node.canvas_id, fill=new_color)
 
+    # --- MODIFIED: More robust hover logic ---
     def on_dot_enter(self, event):
-        dot_id = self.canvas.find_closest(event.x, event.y)[0]
-        node = self.dot_nodes.get(dot_id)
+        new_hovered_id = self.canvas.find_closest(event.x, event.y)[0]
+        
+        # If there was a previously hovered dot, reset it first.
+        # This prevents "sticky" hovers on fast mouse movements.
+        if self.currently_hovered_id and self.currently_hovered_id != new_hovered_id:
+            node = self.dot_nodes.get(self.currently_hovered_id)
+            if node and not node.is_active and not node.is_flagged:
+                default_color = self.COLORS['purple'] if node.type == 'purple' else self.COLORS['green']
+                self.canvas.itemconfig(self.currently_hovered_id, fill=default_color)
+
+        # Now, apply the hover effect to the new dot
+        node = self.dot_nodes.get(new_hovered_id)
         if node and not node.is_active and not node.is_flagged:
             hover_color = self.COLORS['purple_hover'] if node.type == 'purple' else self.COLORS['green_hover']
-            self.canvas.itemconfig(dot_id, fill=hover_color)
+            self.canvas.itemconfig(new_hovered_id, fill=hover_color)
+        
+        # Finally, update the state to remember which dot is now hovered.
+        self.currently_hovered_id = new_hovered_id
 
+    # --- MODIFIED: Simplified leave logic ---
     def on_dot_leave(self, event):
-        dot_id = self.canvas.find_closest(event.x, event.y)[0]
-        node = self.dot_nodes.get(dot_id)
-        if node and not node.is_active and not node.is_flagged:
-            default_color = self.COLORS['purple'] if node.type == 'purple' else self.COLORS['green']
-            self.canvas.itemconfig(dot_id, fill=default_color)
+        # When the mouse leaves a dot, we just reset it and clear the state.
+        if self.currently_hovered_id:
+            node = self.dot_nodes.get(self.currently_hovered_id)
+            if node and not node.is_active and not node.is_flagged:
+                default_color = self.COLORS['purple'] if node.type == 'purple' else self.COLORS['green']
+                self.canvas.itemconfig(self.currently_hovered_id, fill=default_color)
+            # Clear the state, as no dot is being hovered now.
+            self.currently_hovered_id = None
 
 if __name__ == "__main__":
     root = tk.Tk()
