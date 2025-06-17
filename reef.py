@@ -1,33 +1,36 @@
 import tkinter as tk
 import math
 
-# --- Step 1: Define the data object for each dot ---
+# --- Data object for each dot ---
 class DotNode:
     """A data object representing a single interactive dot on the dashboard."""
     def __init__(self, canvas_id, dot_type, side_id, sub_reef_id=None):
-        self.canvas_id = canvas_id      # The ID of the shape on the canvas
-        self.type = dot_type            # 'purple' or 'green'
-        self.side_id = side_id          # 0=Top, 1=Top-Right, ..., 5=Top-Left
-        
-        # Purple dots represent sub-reefs
-        self.sub_reef_id = sub_reef_id  # 0 or 1 for purple dots, None for green
-        
-        # Green dots represent algae presence
-        self.has_algae = False          # Boolean, only relevant for green dots
-        
-        # Universal state for being 'on' or 'off'
+        self.canvas_id = canvas_id
+        self.type = dot_type
+        self.side_id = side_id
+        self.sub_reef_id = sub_reef_id
+        self.has_algae = False
         self.is_active = False
-        
-        # --- NEW: State for being flagged as red ---
         self.is_flagged = False
 
     def __repr__(self):
-        """A friendly representation for printing the object."""
         state = f"Active={self.is_active}, Flagged={self.is_flagged}"
         if self.type == 'purple':
             return f"<DotNode: Side={self.side_id}, SubReef={self.sub_reef_id}, {state}>"
         else:
             return f"<DotNode: Side={self.side_id}, HasAlgae={self.has_algae}, {state}>"
+
+# --- NEW: Data object for each hexagon side ---
+class HexSideNode:
+    """A data object representing one side of the central hexagon."""
+    def __init__(self, canvas_id, side_id):
+        self.canvas_id = canvas_id  # The ID of the line on the canvas
+        self.side_id = side_id      # 0 to 5, identifying the side
+        self.is_flagged = False     # The state we want to toggle
+
+    def __repr__(self):
+        return f"<HexSideNode: Side={self.side_id}, Flagged={self.is_flagged}>"
+
 
 class HexDataDashboard:
     def __init__(self, master):
@@ -36,27 +39,29 @@ class HexDataDashboard:
         master.geometry("550x550+0+0")
         master.configure(bg="#1a1a2e")
 
-        # --- Configuration (mostly unchanged) ---
         self.CENTER_X, self.CENTER_Y = 275, 275
         self.DOT_SIZE = 20
         self.RADII = {"hexagon": 50, "level_1": 90, "level_2": 140, "level_3": 190, "green_level": 240}
-        # --- NEW: Added red color ---
         self.COLORS = {"bg": "#1a1a2e", "purple": "#8A2BE2", "purple_hover": "#be7dfd", "white_toggled": "#FFFFFF", "green": "#39FF14", "green_hover": "#98FB98", "green_toggled": "#1a3b1f", "red_flagged": "#FF4136"}
         self.DOT_OFFSET_ANGLE = 12
 
+        # --- Data stores for all interactive elements ---
         self.dot_nodes = {}
+        self.hexagon_sides = {} # NEW dictionary for hexagon side objects
 
         self.canvas = tk.Canvas(master, width=550, height=550, bg=self.COLORS["bg"], highlightthickness=0)
         self.canvas.pack()
 
         self.draw_dashboard()
-        # Bind left-click, right-click, and hover events
+        
+        # Bind events for dots
         self.canvas.tag_bind("toggle_dot", "<Button-1>", self.handle_left_click)
-        # --- NEW: Binding for right-click ---
-        # Note: On macOS, right-click can sometimes be <Button-2>
         self.canvas.tag_bind("toggle_dot", "<Button-3>", self.handle_right_click)
         self.canvas.tag_bind("toggle_dot", "<Enter>", self.on_dot_enter)
         self.canvas.tag_bind("toggle_dot", "<Leave>", self.on_dot_leave)
+
+        # --- NEW: Bind right-click event for hexagon sides ---
+        self.canvas.tag_bind("hexagon_side", "<Button-3>", self.toggle_hexagon_side)
 
     def get_circle_position(self, radius, angle_degrees):
         angle_radians = math.radians(angle_degrees - 90)
@@ -68,11 +73,48 @@ class HexDataDashboard:
         self.draw_orbital_dots()
         self.draw_hexagon()
 
+    # --- MODIFIED: Draws 6 individual lines instead of one polygon ---
     def draw_hexagon(self):
+        """Draws a "pointy-topped" hexagon as 6 separate, interactive lines."""
         points = []
+        # First, calculate all 6 corner points of the hexagon
         for i in range(6):
-            points.extend(self.get_circle_position(self.RADII["hexagon"], i * 60 - 30))
-        self.canvas.create_polygon(points, outline=self.COLORS["purple"], width=3, fill="")
+            points.append(self.get_circle_position(self.RADII["hexagon"], i * 60 - 30))
+
+        # Now, draw a line between each point and the next, creating a data node
+        for i in range(6):
+            start_point = points[i]
+            # The modulo operator (%) ensures the last point connects back to the first
+            end_point = points[(i + 1) % 6] 
+            
+            line_id = self.canvas.create_line(
+                start_point, end_point,
+                fill=self.COLORS["purple"], 
+                width=20, 
+                tags="hexagon_side"  # Apply the tag for event binding
+            )
+            # Create the data object for this side and store it
+            self.hexagon_sides[line_id] = HexSideNode(line_id, i)
+
+    # --- NEW: Event handler for right-clicking a hexagon side ---
+    def toggle_hexagon_side(self, event):
+        """Toggles a hexagon side between purple and red."""
+        clicked_id = self.canvas.find_closest(event.x, event.y)[0]
+        
+        # Check if the clicked item is actually a hexagon side
+        if clicked_id not in self.hexagon_sides:
+            return
+
+        side_node = self.hexagon_sides[clicked_id]
+        
+        # Toggle the data model state
+        side_node.is_flagged = not side_node.is_flagged
+        
+        # Update the UI based on the new state
+        new_color = self.COLORS['red_flagged'] if side_node.is_flagged else self.COLORS['purple']
+        self.canvas.itemconfig(clicked_id, fill=new_color)
+        
+        print(f"Toggled: {side_node}")
 
     def draw_orbital_dots(self):
         purple_radii = [self.RADII['level_1'], self.RADII['level_2'], self.RADII['level_3']]
@@ -91,67 +133,44 @@ class HexDataDashboard:
             dot_id = self.canvas.create_oval(x-r, y-r, x+r, y+r, fill=self.COLORS["green"], outline="", tags="toggle_dot")
             self.dot_nodes[dot_id] = DotNode(dot_id, 'green', side_id)
 
-    # --- NEW: Right-click handler ---
     def handle_right_click(self, event):
-        """Handles right-clicks to toggle the 'flagged' (red) state."""
         clicked_id = self.canvas.find_closest(event.x, event.y)[0]
         if clicked_id not in self.dot_nodes:
             return
-
         node = self.dot_nodes[clicked_id]
-        
-        # Toggle the flagged state
         node.is_flagged = not node.is_flagged
-        
-        # A flagged dot cannot also be active. If we flag it, deactivate it.
         if node.is_flagged:
             node.is_active = False
-
         self._update_dot_visuals(node)
         print(f"Right-clicked: {node}")
 
-    # --- MODIFIED: Renamed and updated left-click handler ---
     def handle_left_click(self, event):
-        """Handles left-clicks to toggle 'active' state or to un-flag a red dot."""
         clicked_id = self.canvas.find_closest(event.x, event.y)[0]
         if clicked_id not in self.dot_nodes:
             return
-
         node = self.dot_nodes[clicked_id]
-
-        # If it's flagged red, a left click will un-flag it.
         if node.is_flagged:
             node.is_flagged = False
-        # Otherwise, toggle its active state as normal.
         else:
             node.is_active = not node.is_active
             if node.type == 'green':
                 node.has_algae = node.is_active
-        
         self._update_dot_visuals(node)
         print(f"Left-clicked: {node}")
 
-    # --- NEW: Centralized function to update a dot's color based on its state ---
     def _update_dot_visuals(self, node):
-        """Sets the dot's color based on its current state properties."""
         new_color = ""
-        # Priority 1: Flagged (red)
         if node.is_flagged:
             new_color = self.COLORS['red_flagged']
-        # Priority 2: Active (white or dark green)
         elif node.is_active:
             new_color = self.COLORS['white_toggled'] if node.type == 'purple' else self.COLORS['green_toggled']
-        # Default: Inactive (purple or bright green)
         else:
             new_color = self.COLORS['purple'] if node.type == 'purple' else self.COLORS['green']
-        
         self.canvas.itemconfig(node.canvas_id, fill=new_color)
 
-    # --- MODIFIED: Hover effects now ignore flagged dots ---
     def on_dot_enter(self, event):
         dot_id = self.canvas.find_closest(event.x, event.y)[0]
         node = self.dot_nodes.get(dot_id)
-        # Only show hover effect if the dot is not active AND not flagged
         if node and not node.is_active and not node.is_flagged:
             hover_color = self.COLORS['purple_hover'] if node.type == 'purple' else self.COLORS['green_hover']
             self.canvas.itemconfig(dot_id, fill=hover_color)
@@ -159,7 +178,6 @@ class HexDataDashboard:
     def on_dot_leave(self, event):
         dot_id = self.canvas.find_closest(event.x, event.y)[0]
         node = self.dot_nodes.get(dot_id)
-        # Only revert color if the dot is not active AND not flagged
         if node and not node.is_active and not node.is_flagged:
             default_color = self.COLORS['purple'] if node.type == 'purple' else self.COLORS['green']
             self.canvas.itemconfig(dot_id, fill=default_color)
