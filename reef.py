@@ -20,13 +20,13 @@ class DotNode:
         else:
             return f"<DotNode: Side={self.side_id}, HasAlgae={self.has_algae}, {state}>"
 
-# --- NEW: Data object for each hexagon side ---
+# --- Data object for each hexagon side (now a trapezoid) ---
 class HexSideNode:
     """A data object representing one side of the central hexagon."""
     def __init__(self, canvas_id, side_id):
-        self.canvas_id = canvas_id  # The ID of the line on the canvas
-        self.side_id = side_id      # 0 to 5, identifying the side
-        self.is_flagged = False     # The state we want to toggle
+        self.canvas_id = canvas_id
+        self.side_id = side_id
+        self.is_flagged = False
 
     def __repr__(self):
         return f"<HexSideNode: Side={self.side_id}, Flagged={self.is_flagged}>"
@@ -41,26 +41,30 @@ class HexDataDashboard:
 
         self.CENTER_X, self.CENTER_Y = 275, 275
         self.DOT_SIZE = 20
-        self.RADII = {"hexagon": 50, "level_1": 90, "level_2": 140, "level_3": 190, "green_level": 240}
+        # --- MODIFIED: Replaced 'hexagon' with 'hex_outer' and 'hex_inner' ---
+        self.RADII = {
+            "hex_outer": 65, 
+            "hex_inner": 45, 
+            "level_1": 90, 
+            "level_2": 140, 
+            "level_3": 190, 
+            "green_level": 240
+        }
         self.COLORS = {"bg": "#1a1a2e", "purple": "#8A2BE2", "purple_hover": "#be7dfd", "white_toggled": "#FFFFFF", "green": "#39FF14", "green_hover": "#98FB98", "green_toggled": "#1a3b1f", "red_flagged": "#FF4136"}
         self.DOT_OFFSET_ANGLE = 12
 
-        # --- Data stores for all interactive elements ---
         self.dot_nodes = {}
-        self.hexagon_sides = {} # NEW dictionary for hexagon side objects
+        self.hexagon_sides = {}
 
         self.canvas = tk.Canvas(master, width=550, height=550, bg=self.COLORS["bg"], highlightthickness=0)
         self.canvas.pack()
 
         self.draw_dashboard()
         
-        # Bind events for dots
         self.canvas.tag_bind("toggle_dot", "<Button-1>", self.handle_left_click)
         self.canvas.tag_bind("toggle_dot", "<Button-3>", self.handle_right_click)
         self.canvas.tag_bind("toggle_dot", "<Enter>", self.on_dot_enter)
         self.canvas.tag_bind("toggle_dot", "<Leave>", self.on_dot_leave)
-
-        # --- NEW: Bind right-click event for hexagon sides ---
         self.canvas.tag_bind("hexagon_side", "<Button-3>", self.toggle_hexagon_side)
 
     def get_circle_position(self, radius, angle_degrees):
@@ -73,45 +77,51 @@ class HexDataDashboard:
         self.draw_orbital_dots()
         self.draw_hexagon()
 
-    # --- MODIFIED: Draws 6 individual lines instead of one polygon ---
+    # --- REWRITTEN: Draws 6 trapezoid polygons instead of lines ---
     def draw_hexagon(self):
-        """Draws a "pointy-topped" hexagon as 6 separate, interactive lines."""
-        points = []
-        # First, calculate all 6 corner points of the hexagon
+        """Draws the central hexagon as 6 separate, interactive trapezoids."""
+        outer_points = []
+        inner_points = []
+        
+        # First, calculate all 6 vertices for both the outer and inner rings
         for i in range(6):
-            points.append(self.get_circle_position(self.RADII["hexagon"], i * 60 - 30))
+            angle = i * 60 - 30  # Angle for pointy-topped hexagon vertices
+            outer_points.append(self.get_circle_position(self.RADII["hex_outer"], angle))
+            inner_points.append(self.get_circle_position(self.RADII["hex_inner"], angle))
 
-        # Now, draw a line between each point and the next, creating a data node
+        # Now, create a trapezoid for each of the 6 sides
         for i in range(6):
-            start_point = points[i]
             # The modulo operator (%) ensures the last point connects back to the first
-            end_point = points[(i + 1) % 6] 
+            p_outer_1 = outer_points[i]
+            p_outer_2 = outer_points[(i + 1) % 6]
+            p_inner_1 = inner_points[i]
+            p_inner_2 = inner_points[(i + 1) % 6]
             
-            line_id = self.canvas.create_line(
-                start_point, end_point,
-                fill=self.COLORS["purple"], 
-                width=20, 
-                tags="hexagon_side"  # Apply the tag for event binding
+            # The four points of the trapezoid, in order to trace its perimeter
+            trapezoid_points = [p_outer_1, p_outer_2, p_inner_2, p_inner_1]
+
+            # Create the polygon on the canvas
+            poly_id = self.canvas.create_polygon(
+                trapezoid_points,
+                fill=self.COLORS["purple"],
+                outline="",  # No outline so the trapezoids appear seamless
+                tags="hexagon_side"
             )
             # Create the data object for this side and store it
-            self.hexagon_sides[line_id] = HexSideNode(line_id, i)
+            self.hexagon_sides[poly_id] = HexSideNode(poly_id, i)
 
-    # --- NEW: Event handler for right-clicking a hexagon side ---
     def toggle_hexagon_side(self, event):
-        """Toggles a hexagon side between purple and red."""
+        """Toggles a hexagon side between purple and red. Works for polygons too."""
         clicked_id = self.canvas.find_closest(event.x, event.y)[0]
         
-        # Check if the clicked item is actually a hexagon side
         if clicked_id not in self.hexagon_sides:
             return
 
         side_node = self.hexagon_sides[clicked_id]
-        
-        # Toggle the data model state
         side_node.is_flagged = not side_node.is_flagged
         
-        # Update the UI based on the new state
         new_color = self.COLORS['red_flagged'] if side_node.is_flagged else self.COLORS['purple']
+        # itemconfig with 'fill' works on polygons just as it did on lines
         self.canvas.itemconfig(clicked_id, fill=new_color)
         
         print(f"Toggled: {side_node}")
