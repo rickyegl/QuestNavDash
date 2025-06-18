@@ -92,6 +92,7 @@ class HexDataDashboard:
         self.inst = ntcore.NetworkTableInstance.getDefault()
         self.table = self.inst.getTable(NT_TABLE_NAME)
         self.inst.startClient4("dashboard")
+        global nt_server_ip
         self.inst.setServer(nt_server_ip)
         
         self.status_label = tk.Label(master, text="Connecting...", bd=1, relief=tk.SUNKEN, anchor=tk.W, fg="white", bg="#333")
@@ -162,6 +163,7 @@ class HexDataDashboard:
             node.is_flagged = not node.is_flagged
             self._update_hex_side_visuals(node)
             self.publish_hex_side_state(node)
+            self._signal_state_change() # MODIFIED: Signal change to NT
             print(f"Toggled and Published: {node}")
 
     def handle_right_click(self, event):
@@ -173,6 +175,7 @@ class HexDataDashboard:
                 node.is_active = False # Flagging overrides active state
             self._update_dot_visuals(node)
             self.publish_dot_state(node)
+            self._signal_state_change() # MODIFIED: Signal change to NT
             print(f"Right-clicked and Published: {node}")
 
     def handle_left_click(self, event):
@@ -187,9 +190,18 @@ class HexDataDashboard:
                 node.has_algae = node.is_active
             self._update_dot_visuals(node)
             self.publish_dot_state(node)
+            self._signal_state_change() # MODIFIED: Signal change to NT
             print(f"Left-clicked and Published: {node}")
 
     # --- NetworkTables Publish Methods (Python -> Java) ---
+    def _signal_state_change(self):
+        """Publishes 'Changed' = True to the root of the table to signal an update."""
+        if not self.inst.isConnected():
+            return
+        # This signals to the robot that the dashboard has updated a value.
+        # The robot is expected to read the new state and set this back to False.
+        self.table.getBooleanTopic("Changed").publish().set(True)
+
     def publish_dot_state(self, node):
         if not self.inst.isConnected(): return
 
@@ -231,6 +243,7 @@ class HexDataDashboard:
                 nt_server_ip = nt_robot_ip
             elif(nt_server_ip == nt_robot_ip):
                 nt_server_ip = nt_sim_ip
+            self.inst.setServer(nt_server_ip)
             time.sleep(3)
             
         
