@@ -1,3 +1,4 @@
+import time
 import tkinter as tk
 import math
 import ntcore
@@ -5,7 +6,9 @@ import ntcore
 # --- Configuration ---
 # For local testing with OutlineViewer, use "127.0.0.1"
 # For connecting to a RoboRIO, use its IP, e.g., "10.66.47.2" or "roborio-6647-frc.local"
-NT_SERVER_IP = "127.0.0.1" 
+nt_sim_ip = "127.0.0.1"
+nt_robot_ip = "10.66.47.2"
+nt_server_ip = nt_robot_ip
 # MODIFIED: Changed table name to match SmartDashboard's structure
 NT_TABLE_NAME = "SmartDashboard/ReefState"
 UPDATE_PERIOD_MS = 100 # How often to check for updates from NetworkTables
@@ -89,7 +92,7 @@ class HexDataDashboard:
         self.inst = ntcore.NetworkTableInstance.getDefault()
         self.table = self.inst.getTable(NT_TABLE_NAME)
         self.inst.startClient4("dashboard")
-        self.inst.setServer(NT_SERVER_IP)
+        self.inst.setServer(nt_server_ip)
         
         self.status_label = tk.Label(master, text="Connecting...", bd=1, relief=tk.SUNKEN, anchor=tk.W, fg="white", bg="#333")
         self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
@@ -214,12 +217,22 @@ class HexDataDashboard:
 
     # --- NetworkTables Sync & Update (Java -> Python) ---
     def periodic_update(self):
+        global nt_robot_ip
+        global nt_server_ip
+        global nt_sim_ip
+        
         """Main loop called periodically to update connection status and sync data."""
         if self.inst.isConnected():
-            self.status_label.config(text=f"Connected to {NT_SERVER_IP}", fg="#39FF14")
+            self.status_label.config(text=f"Connected to {nt_server_ip}", fg="#39FF14")
             self.sync_from_nt()
         else:
-            self.status_label.config(text=f"Disconnected - trying to connect to {NT_SERVER_IP}", fg="#FF4136")
+            self.status_label.config(text=f"Disconnected - trying to connect to {nt_server_ip}", fg="#FF4136")
+            if(nt_server_ip == nt_sim_ip):
+                nt_server_ip = nt_robot_ip
+            elif(nt_server_ip == nt_robot_ip):
+                nt_server_ip = nt_sim_ip
+            time.sleep(3)
+            
         
         self.master.after(UPDATE_PERIOD_MS, self.periodic_update)
 
