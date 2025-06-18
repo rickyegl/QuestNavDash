@@ -6,6 +6,7 @@ import ntcore
 # For local testing with OutlineViewer, use "127.0.0.1"
 # For connecting to a RoboRIO, use its IP, e.g., "10.66.47.2" or "roborio-6647-frc.local"
 NT_SERVER_IP = "127.0.0.1" 
+# MODIFIED: Changed table name to match SmartDashboard's structure
 NT_TABLE_NAME = "SmartDashboard/ReefState"
 UPDATE_PERIOD_MS = 100 # How often to check for updates from NetworkTables
 
@@ -52,7 +53,20 @@ class HexDataDashboard:
         self.CENTER_X, self.CENTER_Y = 275, 275
         self.DOT_SIZE = 20
         self.RADII = { "hex_outer": 65, "hex_inner": 45, "level_1": 90, "level_2": 140, "level_3": 190, "green_level": 240 }
-        self.COLORS = {"bg": "#1a1a2e", "purple": "#8A2BE2", "purple_hover": "#be7dfd", "white_toggled": "#FFFFFF", "green": "#39FF14", "green_hover": "#98FB98", "green_toggled": "#1a3b1f", "red_flagged": "#FF4136"}
+        
+        # MODIFIED: Swapped "green" and "green_toggled" colors.
+        # Now, inactive green is dark, and active green is bright.
+        self.COLORS = {
+            "bg": "#1a1a2e", 
+            "purple": "#8A2BE2", 
+            "purple_hover": "#be7dfd", 
+            "white_toggled": "#FFFFFF", 
+            "green": "#1a3b1f",           # Was #39FF14 (bright green)
+            "green_hover": "#98FB98", 
+            "green_toggled": "#39FF14",   # Was #1a3b1f (dark green)
+            "red_flagged": "#FF4136"
+        }
+        
         self.DOT_OFFSET_ANGLE = 12
 
         # Map Python radius names to Java Level names
@@ -174,6 +188,8 @@ class HexDataDashboard:
 
     # --- NetworkTables Publish Methods (Python -> Java) ---
     def publish_dot_state(self, node):
+        if not self.inst.isConnected(): return
+
         if node.is_flagged:
             state_str = "RESTRICTED"
         elif node.is_active:
@@ -190,6 +206,8 @@ class HexDataDashboard:
             entry.set(state_str)
     
     def publish_hex_side_state(self, node):
+        if not self.inst.isConnected(): return
+        
         state_str = "RESTRICTED" if node.is_flagged else "ALLOWED"
         entry = self.table.getStringTopic(f"Side{node.side_id}/State").publish()
         entry.set(state_str)
@@ -275,6 +293,7 @@ class HexDataDashboard:
         
         self.currently_hovered_id = new_hovered_id
         node = self.dot_nodes.get(new_hovered_id)
+        # Apply hover effect only if the dot is not active and not flagged.
         if node and not node.is_active and not node.is_flagged:
             hover_color = self.COLORS['purple_hover'] if node.type == 'purple' else self.COLORS['green_hover']
             self.canvas.itemconfig(new_hovered_id, fill=hover_color)
