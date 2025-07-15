@@ -49,7 +49,7 @@ class HexSideNode:
 class HexDataDashboard:
     def __init__(self, master):
         self.master = master
-        master.title("Hex-Grid Data Dashboard (Sync Enabled)")
+        master.title("Voltec Reef Manager (Sync Enabled)")
         master.geometry("550x580+0+0")
         master.configure(bg="#1a1a2e")
 
@@ -142,11 +142,17 @@ class HexDataDashboard:
                 level_name = self.level_map[radius_name]
                 angles = [center_angle + self.DOT_OFFSET_ANGLE, center_angle - self.DOT_OFFSET_ANGLE]
                 for sub_reef_id, angle in enumerate(angles):
+                    # --- MODIFICATION: Invert the sub_reef_id ---
+                    # This swaps which dot is 0 and which is 1.
+                    inverted_sub_reef_id = 1 - sub_reef_id
+                    
                     x, y = self.get_circle_position(radius, angle)
                     dot_id = self.canvas.create_oval(x-r, y-r, x+r, y+r, fill=self.COLORS["purple"], outline="", tags="toggle_dot")
-                    node = DotNode(dot_id, 'purple', side_id, sub_reef_id, radius_name=radius_name, level_name=level_name)
+                    
+                    # Use the new inverted ID for the node and the lookup key
+                    node = DotNode(dot_id, 'purple', side_id, inverted_sub_reef_id, radius_name=radius_name, level_name=level_name)
                     self.dot_nodes[dot_id] = node
-                    self.purple_dots_lookup[(side_id, sub_reef_id, radius_name)] = node
+                    self.purple_dots_lookup[(side_id, inverted_sub_reef_id, radius_name)] = node
             
             # Green Dot (Algae)
             x, y = self.get_circle_position(self.RADII['green_level'], center_angle)

@@ -5,4 +5,14 @@ pyinstaller --onefile ^
 --hidden-import ntcore._logutil ^
  reef.py
 
-start "" "saveBins.bat"
+ pyinstaller --onefile ^
+--add-binary "wpiutil.dll;." ^
+--add-binary "ntcore.dll;." ^
+--add-binary "wpinet.dll;." ^
+--hidden-import ntcore._logutil ^
+ strategist_sim.py
+
+COPY /Y dist\reef.exe "%USERPROFILE%"
+COPY /Y dist\strategist_sim.exe "%USERPROFILE%"
+
+::start "" "saveBins.bat"

@@ -13,7 +13,7 @@ import os
 # 'name': The process name (e.g., "notepad.exe"). Find this in Task Manager.
 # 'path': The full, absolute path to the executable.
 AUTOSTART_APPS = [
-    {'name': 'notepad.exe', 'path': 'C:\\Windows\\System32\\notepad.exe'}
+    {'name': 'reef.exe', 'path': os.path.expanduser('~/reef.exe')}
     #{'name': 'mspaint.exe', 'path': 'C:\\Windows\\System32\\mspaint.exe'},
     # Add your own apps here. Right-click a shortcut -> Properties to find the path.
     # {'name': 'Code.exe',    'path': 'C:\\Users\\YourUser\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe'},
@@ -24,8 +24,9 @@ WAIT_TIMEOUT = 15  # Seconds to wait for windows to appear after launching
 # Define the desired layout for your windows.
 # The script will wait for these windows to appear before arranging them.
 DESIRED_LAYOUT = [
-    ("notepad.exe", (0, 0, 800, 600)),
+    #("notepad.exe", (0, 0, 800, 600)),
     #("Calculator",  (0, 600, 400, 500)),
+    #("Window Manager",  (1505, 396, 416, 639)),
 ]
 
 # --- 3. WINDOW MANIPULATION LOGIC ---
