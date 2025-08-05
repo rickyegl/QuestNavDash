@@ -45,6 +45,9 @@ class QuestNavManagerDashboard:
         self.field_bg_photo = None
         self.tag_data = {}
         self.initial_sync_done = False
+        
+        # --- ADDED --- BooleanVar to hold the state of the enabled checkbox
+        self.enabled_var = tk.BooleanVar(value=True)
 
         self._setup_ui()
 
@@ -69,9 +72,25 @@ class QuestNavManagerDashboard:
         apply_button = tk.Button(control_frame, text="Apply", command=self.on_apply_clicked, bg="#39FF14", fg="black", relief=tk.FLAT)
         apply_button.pack(side=tk.LEFT, padx=20)
 
-        # ## --- ADDED --- Calibrate button added to the right side of the control frame
         calibrate_button = tk.Button(control_frame, text="Calibrate", command=self.on_calibrate_clicked, bg="#FFA500", fg="black", relief=tk.FLAT)
         calibrate_button.pack(side=tk.RIGHT, padx=10)
+        
+        # --- ADDED --- Enabled/Disabled checkbox
+        self.enabled_check = tk.Checkbutton(
+            control_frame,
+            text="Enabled",
+            variable=self.enabled_var,
+            command=self.on_enabled_toggle,
+            fg="white",
+            bg=control_frame['bg'],
+            selectcolor="#1a1a2e",
+            activebackground=control_frame['bg'],
+            activeforeground="white",
+            relief=tk.FLAT,
+            highlightthickness=0
+        )
+        self.enabled_check.pack(side=tk.RIGHT, padx=5)
+        # --- END ADDED SECTION ---
         
         self.canvas = tk.Canvas(self.master, width=800, height=450, bg="black", highlightthickness=0)
         self.canvas.pack(side=tk.TOP, pady=5)
@@ -150,7 +169,6 @@ class QuestNavManagerDashboard:
                     d.text((x + i, y + j), text_to_draw, font=font, fill=self.TAG_ID_OUTLINE_COLOR)
         d.text((x, y), text_to_draw, font=font, fill=self.TAG_ID_FONT_COLOR)
 
-    # ## --- ADDED --- Method to handle the calibrate button click
     def on_calibrate_clicked(self):
         """Called when the Calibrate button is clicked. Sets 'SetCalibration' to true on NetworkTables."""
         if not self.inst.isConnected():
@@ -160,6 +178,20 @@ class QuestNavManagerDashboard:
         print("Calibrate button clicked. Setting 'SetCalibration' to True.")
         self.table.getBooleanTopic("SetCalibration").publish().set(True)
 
+    # --- ADDED --- Method to handle the enabled/disabled toggle
+    def on_enabled_toggle(self):
+        """Called when the Enabled checkbox is toggled. Publishes the value to NetworkTables."""
+        if not self.inst.isConnected():
+            messagebox.showwarning("Not Connected", "Cannot change 'Enabled' state. Not connected to NetworkTables.")
+            # Revert the checkbox to prevent the UI from being out of sync with the server
+            last_known_state = self.table.getBoolean("Enabled", self.enabled_var.get())
+            self.enabled_var.set(last_known_state)
+            return
+
+        is_enabled = self.enabled_var.get()
+        print(f"Setting 'Enabled' to {is_enabled} on NetworkTables.")
+        self.table.getBooleanTopic("enabled").publish().set(is_enabled)
+        
     def on_apply_clicked(self):
         if not self.inst.isConnected():
             messagebox.showwarning("Not Connected", "Cannot apply changes. Not connected to NT server.")
@@ -192,11 +224,17 @@ class QuestNavManagerDashboard:
         while self.table.getNumber("SelectedFieldIndex", None) is None or self.table.getNumber("SelectedLayoutIndex", None) is None:
             print("Waiting for Field/Layout keys to be published on NT server...")
             time.sleep(0.1)
+            
         field_index = int(self.table.getNumber("SelectedFieldIndex", -1))
         layout_index = int(self.table.getNumber("SelectedLayoutIndex", -1))
+        # --- ADDED --- Sync the enabled state from NT, defaulting to True if not present
+        enabled_state = self.table.getBoolean("Enabled", True)
+        
         self.field_var.set(str(field_index))
         self.layout_var.set(str(layout_index))
-        print(f"Synced. Field: {field_index}, Layout: {layout_index}")
+        self.enabled_var.set(enabled_state)
+        
+        print(f"Synced. Field: {field_index}, Layout: {layout_index}, Enabled: {enabled_state}")
 
     def update_tag_colors_from_nt(self):
         active_tag_id = self.table.getNumber("ActiveTag", -1)
