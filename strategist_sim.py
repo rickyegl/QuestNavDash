@@ -9,13 +9,16 @@ def main():
         if event.is_keypad:
             table.putBoolean("numpad"+event.name, event.event_type == keyboard.KEY_DOWN)
         else:
+            print(f"Key {event.name} {'pressed' if event.event_type == keyboard.KEY_DOWN else 'released'}")
             table.putBoolean(event.name.lower(), event.event_type == keyboard.KEY_DOWN)
 
     ntcoreinst = ntcore.NetworkTableInstance.getDefault()
 
     print("Setting up NetworkTables client")
     ntcoreinst.startClient4("KeyboardToNT")
-    ntcoreinst.setServer("127.0.0.1")
+    #ntcoreinst.setServer("127.0.0.1")
+    ntcoreinst.setServer("10.66.47.2")
+    
     ntcoreinst.startDSClient()
 
     # Wait for connection

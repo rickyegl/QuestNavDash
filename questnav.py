@@ -14,7 +14,7 @@ except ImportError:
     ImageTk = None
 
 # --- Configuration ---
-NT_SERVER_IP = "127.0.0.1"
+NT_SERVER_IP = "10.66.47.2" #127.0.0.1
 NT_TABLE_NAME = "SmartDashboard/QuestNavManager"
 UPDATE_PERIOD_MS = 500
 
@@ -207,8 +207,8 @@ class QuestNavManagerDashboard:
             messagebox.showerror("Invalid Input", "Field and Layout must be integer numbers.")
             return
 
-        self.table.getIntegerTopic("SelectedFieldIndex").publish().set(field_index)
-        self.table.getIntegerTopic("SelectedLayoutIndex").publish().set(layout_index)
+        self.table.getDoubleTopic("SelectedFieldIndex").publish().set(field_index)
+        self.table.getDoubleTopic("SelectedLayoutIndex").publish().set(layout_index)
         self.table.getBooleanTopic("Changed").publish().set(True)
 
     # --- ADDED --- Method for the delete button
@@ -223,7 +223,7 @@ class QuestNavManagerDashboard:
         if messagebox.askyesno("Confirm Delete", "Are you sure you want to delete the currently selected layout? This cannot be undone."):
             # 3. If user confirms, publish to NetworkTables
             print("Delete confirmed. Setting 'SetDelete' to 1.")
-            self.table.getIntegerTopic("SetDelete").publish().set(1)
+            self.table.getBooleanTopic("SetDelete").publish().set(True)
         else:
             # 4. If user cancels, do nothing (optional: print a message)
             print("Delete action cancelled by user.")
