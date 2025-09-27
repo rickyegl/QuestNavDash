@@ -8,7 +8,7 @@ import ntcore
 # For connecting to a RoboRIO, use its IP, e.g., "10.66.47.2" or "roborio-6647-frc.local"
 nt_sim_ip = "127.0.0.1"
 nt_robot_ip = "10.66.47.2"
-nt_server_ip = nt_robot_ip
+nt_server_ip = nt_sim_ip
 # MODIFIED: Changed table name to match SmartDashboard's structure
 NT_TABLE_NAME = "SmartDashboard/ReefState"
 UPDATE_PERIOD_MS = 100 # How often to check for updates from NetworkTables
