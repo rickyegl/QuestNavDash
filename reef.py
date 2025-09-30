@@ -26,6 +26,7 @@ class DotNode:
         self.has_algae = False
         self.is_active = False
         self.is_flagged = False
+        self.is_goal = False
 
     def __repr__(self):
         state = f"Active={self.is_active}, Flagged={self.is_flagged}"
@@ -67,7 +68,8 @@ class HexDataDashboard:
             "green": "#1a3b1f",           # Was #39FF14 (bright green)
             "green_hover": "#98FB98", 
             "green_toggled": "#39FF14",   # Was #1a3b1f (dark green)
-            "red_flagged": "#FF4136"
+            "red_flagged": "#FF4136",
+            "goal": "yellow"
         }
         
         self.DOT_OFFSET_ANGLE = 12
@@ -188,6 +190,8 @@ class HexDataDashboard:
         clicked_id = self.canvas.find_closest(event.x, event.y)[0]
         if clicked_id in self.dot_nodes:
             node = self.dot_nodes[clicked_id]
+            if node.is_goal:
+                node.is_goal = False
             if node.is_flagged:
                 node.is_flagged = False # Unflag on left-click
             else:
@@ -258,7 +262,7 @@ class HexDataDashboard:
     def sync_from_nt(self):
         """Read all values from NetworkTables and update the GUI if they differ."""
         # Define mappings from NT string values to internal states
-        stick_state_map = {"EMPTY": (False, False), "GAMEPIECE": (True, False), "RESTRICTED": (False, True)}
+        stick_state_map = {"EMPTY": (False, False, False), "GAMEPIECE": (True, False, False), "RESTRICTED": (False, True, False), "GOAL": (False, False, True)}
         side_state_map = {"ALLOWED": False, "RESTRICTED": True}
 
         for side_id in range(6):
@@ -277,11 +281,12 @@ class HexDataDashboard:
             node = self.green_dots_lookup.get(side_id)
             if node:
                 nt_val = side_table.getString("Algae", "EMPTY")
-                new_active, new_flagged = stick_state_map.get(nt_val, (False, False))
-                if node.is_active != new_active or node.is_flagged != new_flagged:
+                new_active, new_flagged, new_goal = stick_state_map.get(nt_val, (False, False, False))
+                if node.is_active != new_active or node.is_flagged != new_flagged or node.is_goal != new_goal:
                     node.is_active = new_active
                     node.is_flagged = new_flagged
                     node.has_algae = new_active
+                    node.is_goal = new_goal
                     self._update_dot_visuals(node)
 
             # Sync Sub-Reef (Purple) Dot States
@@ -291,17 +296,20 @@ class HexDataDashboard:
                     node = self.purple_dots_lookup.get((side_id, sub_reef_id, radius_name))
                     if node:
                         nt_val = branch_table.getString(level_name, "EMPTY")
-                        new_active, new_flagged = stick_state_map.get(nt_val, (False, False))
-                        if node.is_active != new_active or node.is_flagged != new_flagged:
+                        new_active, new_flagged, new_goal = stick_state_map.get(nt_val, (False, False, False))
+                        if node.is_active != new_active or node.is_flagged != new_flagged or node.is_goal != new_goal:
                             node.is_active = new_active
                             node.is_flagged = new_flagged
+                            node.is_goal = new_goal
                             self._update_dot_visuals(node)
 
     # --- Visual Update and Utility Methods ---
     def _update_dot_visuals(self, node):
         """Updates a dot's color based on its state, without publishing."""
         new_color = ""
-        if node.is_flagged:
+        if node.is_goal:
+            new_color = self.COLORS['goal']
+        elif node.is_flagged:
             new_color = self.COLORS['red_flagged']
         elif node.is_active:
             new_color = self.COLORS['white_toggled'] if node.type == 'purple' else self.COLORS['green_toggled']
@@ -326,7 +334,7 @@ class HexDataDashboard:
         self.currently_hovered_id = new_hovered_id
         node = self.dot_nodes.get(new_hovered_id)
         # Apply hover effect only if the dot is not active and not flagged.
-        if node and not node.is_active and not node.is_flagged:
+        if node and not node.is_active and not node.is_flagged and not node.is_goal:
             hover_color = self.COLORS['purple_hover'] if node.type == 'purple' else self.COLORS['green_hover']
             self.canvas.itemconfig(new_hovered_id, fill=hover_color)
 
@@ -338,7 +346,7 @@ class HexDataDashboard:
     def reset_hover_visuals(self, canvas_id):
         node = self.dot_nodes.get(canvas_id)
         # Only reset color if it's in a non-toggled, non-flagged state
-        if node and not node.is_active and not node.is_flagged:
+        if node and not node.is_active and not node.is_flagged and not node.is_goal:
             default_color = self.COLORS['purple'] if node.type == 'purple' else self.COLORS['green']
             self.canvas.itemconfig(canvas_id, fill=default_color)
 
